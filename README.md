@@ -38,3 +38,5 @@ Highlight some text (`<shift>-V`) then `<leader>l`
 
 I limit the models output tokens (`max_tokens`) to 1024, which is three screens of text on my setup. More than enough.
 
+Why is it called "calum"? It started as "call-llm" but that's too boring. And it's a "calm" way of using AI. You select the text to send, you view the results, all inline, in a very simple setup.
+
