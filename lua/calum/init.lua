@@ -1,7 +1,7 @@
 local M = {}
 
 --
--- FILE
+-- File
 --
 
 local function write_to_temp_file(content)
@@ -11,13 +11,13 @@ local function write_to_temp_file(content)
         file:write(content)
         file:close()
     else
-        print("Failed to write to temporary file.")
+        vim.notify("Failed to write to temporary file.", vim.log.levels.ERROR)
     end
 	return tmpfile
 end
 
 --
--- WINDOW
+-- Window
 --
 
 local function open_vertical_split_with_content(content)
@@ -30,15 +30,10 @@ local function open_vertical_split_with_content(content)
 end
 
 local function show_floating_window(message)
-    -- Close the existing floating window if it exists
-    --if float_win ~= nil and vim.api.nvim_win_is_valid(float_win) then
-    --    close_floating_window(float_win, float_buf)
-    --end
-
     -- Create a new buffer (do not list, scratch buffer)
     local float_buf = vim.api.nvim_create_buf(false, true)
 	if not float_buf then
-		vim.notify("failed to create buf", vim.log.levels.ERROR)
+		vim.notify("Failed to create buf", vim.log.levels.ERROR)
 	end
 
     -- Set the content to the provided message
@@ -59,7 +54,7 @@ local function show_floating_window(message)
     -- Open the floating window
     local float_win = vim.api.nvim_open_win(float_buf, true, opts)
 	if not float_win then
-		vim.notify("failed to open win", vim.log.levels.ERROR)
+		vim.notify("Failed to open win", vim.log.levels.ERROR)
 	end
     -- Optional: Set some window options, here the highlight group
     vim.api.nvim_win_set_option(float_win, 'winhl', 'Normal:Normal')
@@ -77,75 +72,97 @@ local function close_floating_window(f_win, f_buf)
 end
 
 --
+-- Selection
+--
+local function get_prompt(opts)
+	local range = {}
+	local is_cont = false
+	if opts.range ~= 0 then
+		-- First call, there is selected text
+		local start_line = opts.line1
+		local end_line = opts.line2
+		if start_line == 0 and end_line == 0 then
+			vim.notify("No range provided.", vim.log.levels.WARN)
+			return nil
+		end
+		lines = vim.fn.getline(start_line, end_line)
+		if #lines == 0 then
+			vim.notify("No text in the provided range.", vim.log.levels.WARN)
+			return nil
+		end
+	else
+		-- Continue the chat, we should be in the chat buffer
+		lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
+		if #lines == 0 then
+			vim.notify("No text in buffer", vim.log.levels.WARN)
+			return nil
+		end
+		local first_line = lines[1]
+		local indicator = "user> "
+		if string.sub(first_line, 1, #indicator) ~= indicator then
+			vim.notify("Can only continue chat in chat buffer", vim.log.levels.WARN)
+			return nil
+		end
+		is_cont = true
+	end
+
+	return {
+		lines = lines,
+		len = #lines,
+		is_cont = is_cont,
+	}
+end
+
+--
 -- MAIN
 --
 
-function M.run(model_name, range)
-
-	-- TODO
-	-- if there is not range
-	--  and the buffer starts with "user>"
-	-- then
-	--  set a variable saying we're a continuation
-	--  select the whole buffer
-
-    if #range < 2 then
-        print("Please provide a valid range.")
-        return
-    end
-
-    local start_line = range[1]
-    local end_line = range[2]
-
-    if start_line == 0 and end_line == 0 then
-        print("No range provided.")
-        return
-    end
-
-    local lines = vim.fn.getline(start_line, end_line)
-    if #lines == 0 then
-        print("No text in the provided range.")
-        return
-    end
-	local prompt_lines = #lines
+-- opts is what nvim gives to nvim_create_user_command's function
+function M.run(opts, range)
+	local llm_cmd = opts.fargs[1]
+	local prompt_obj = get_prompt(opts)
+	if prompt_obj == nil then
+		return
+	end
 
     local user_win = vim.api.nvim_get_current_win()
-	local popup = show_floating_window(string.format("Calling %s...", model_name))
+	local popup = show_floating_window("Thinking...")
 	vim.api.nvim_set_current_win(user_win)
 
-    local content = table.concat(lines, "\n")
+    local content = table.concat(prompt_obj.lines, "\n")
     local tmpfile = write_to_temp_file(content)
-    if tmpfile then
-		local output_buf = nil
-		local on_exit = function(obj)
-			local buf_update = string.format("\nassistant>\n%s\nuser> ", obj.stdout)
-			vim.defer_fn(function()
-				vim.api.nvim_buf_set_lines(
-					output_buf,
-					prompt_lines + 1,
-					-1,
-					false,
-					vim.split(buf_update, "\n")
-				)
+    if tmpfile == nil then
+		close_floating_window(popup.win, popup.buf)
+		return
+	end
 
-				close_floating_window(popup.win, popup.buf)
+	local output_buf = nil
+	local on_exit = function(obj)
+		local buf_update = string.format("\nassistant>\n%s\nuser> ", obj.stdout)
+		vim.defer_fn(function()
+			vim.api.nvim_buf_set_lines(
+				output_buf,
+				prompt_obj.len + 1,
+				-1,
+				false,
+				vim.split(buf_update, "\n")
+			)
+			close_floating_window(popup.win, popup.buf)
+			vim.fn.delete(tmpfile)
+		end, 0)
+	end
+	--local full_cmd = string.format("sleep 2 && echo I am the answer")
+	local full_cmd = string.format("cat %s | %s", tmpfile, llm_cmd)
+	vim.system({"bash", "-c", full_cmd}, {text = true}, on_exit)
 
-				vim.fn.delete(tmpfile)
-
-			end, 0)
-		end
-		-- LLM_OPENAI_SHOW_RESPONSES=1 on cmd line to debug
-		--local cmd = string.format("cat %s | llm -m %s -o max_tokens 1024", tmpfile, model_name)
-		local cmd = string.format("sleep 2 && echo I am the answer")
-		vim.system({"bash", "-c", cmd}, {text = true}, on_exit)
-
-		-- TODO only add "user" if not a continuation
+	if prompt_obj.is_cont then
+		output_buf = vim.api.nvim_get_current_buf()
+	else
+		-- We need a new buffer
 		output_buf = open_vertical_split_with_content(
 			string.format("user> %s", content)
 		)
-	else
-		close_floating_window(popup.win, popup.buf)
-    end
+	end
 
 end
 
