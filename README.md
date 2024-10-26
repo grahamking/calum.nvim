@@ -24,11 +24,11 @@ Plug('grahamking/calum.nvim')
 In your `.config/nvim/init.lua` (or init.vim equivalent) add these lines:
 
 ```
-local gpt_small_cmd = 'llm -m gpt-4o-mini -s \'Be brief\' -o max_tokens 4096'
+local gpt_small_cmd = 'llm -m gpt-4o-mini -s \'Be brief\' -o max_tokens 4096 -o temperature 0.2'
 vim.api.nvim_set_keymap('v', '<leader>l', string.format(':Calum %s<CR>', gpt_small_cmd), { noremap = true, silent = true })
 vim.api.nvim_set_keymap('n', '<leader>l', string.format(':Calum %s<CR>', gpt_small_cmd), { noremap = true, silent = true })
 
-local gpt_big_cmd = 'llm -m gpt-4o -o max_tokens 4096'
+local gpt_big_cmd = 'llm -m gpt-4o -o max_tokens 4096 -o temperature 0.2'
 vim.api.nvim_set_keymap('v', '<leader>p', string.format(':Calum %s<CR>', gpt_big_cmd), { noremap = true, silent = true })
 vim.api.nvim_set_keymap('n', '<leader>p', string.format(':Calum %s<CR>', gpt_big_cmd), { noremap = true, silent = true })
 ```
