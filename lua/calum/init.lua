@@ -98,11 +98,12 @@ local function get_prompt(opts)
             return nil
         end
         local first_line = lines[1]
-        local indicator = "user> "
+        local indicator = "user>"
         if string.sub(first_line, 1, #indicator) ~= indicator then
             vim.notify("Can only continue chat in chat buffer", vim.log.levels.WARN)
             return nil
         end
+		vim.api.nvim_buf_set_lines(0, -1, -1, false, { "", "assistant>", "" })
         is_cont = true
     end
 
@@ -116,6 +117,8 @@ end
 --
 -- MAIN
 --
+
+local incomplete_line = ""
 
 -- opts is what nvim gives to nvim_create_user_command's function
 function M.run(opts, range)
@@ -138,29 +141,68 @@ function M.run(opts, range)
 
     local output_buf = nil
     local on_exit = function(obj)
-        local buf_update = string.format("\nassistant>\n%s\nuser> ", obj.stdout)
-        vim.defer_fn(function()
-            vim.api.nvim_buf_set_lines(
-                output_buf,
-                prompt_obj.len + 1,
-                -1,
-                false,
-                vim.split(buf_update, "\n")
-            )
+		local on_exit_action = function()
+			vim.api.nvim_buf_set_lines(
+				output_buf,
+				-1,
+				-1,
+				false,
+				{ "user>" }
+			)
             close_floating_window(popup.win, popup.buf)
             vim.fn.delete(tmpfile)
-        end, 0)
+        end
+		vim.schedule_wrap(on_exit_action)()
     end
-    --local full_cmd = string.format("sleep 2 && echo I am the answer")
+
+	local on_stdout = function(err, data)
+		if not data or #data == 0 then
+			return
+		end
+		local update_display = function()
+			data = incomplete_line .. data
+			local parts = vim.split(data, "\n", { plain = true })
+			-- Handle the last part (could be incomplete)
+			if data:sub(-1) ~= "\n" then
+				-- If the data doesn't end with a newline, save the last part as incomplete
+				incomplete_line = parts[#parts]
+				table.remove(parts, #parts)
+			else
+				-- If it ends with a newline, there's no incomplete line
+				incomplete_line = ""
+			end
+
+			-- If all we had was an incomplete line, don't update display yet
+			if #parts == 0 then
+				return
+			end
+
+			-- Append each complete part to the buffer
+			local lines = vim.api.nvim_buf_get_lines(output_buf, -1, -1, false)
+			if #lines == 0 then
+				lines = { "" }
+			end
+			-- Append each complete line part
+			lines[#lines] = lines[#lines] .. parts[1]
+			for i = 2, #parts do
+				table.insert(lines, parts[i])
+			end
+			-- Update the buffer with modified lines
+			vim.api.nvim_buf_set_lines(output_buf, -2, -1, false, lines)
+		end
+		vim.schedule_wrap(update_display)()
+	end
+
+    --local full_cmd = string.format("sleep 1 && echo -n 'I am ' && sleep 1 && echo the first part && sleep 1 && echo I am the second && sleep 1 && echo I am the final")
     local full_cmd = string.format("cat %s | %s", tmpfile, llm_cmd)
-    vim.system({"bash", "-c", full_cmd}, {text = true}, on_exit)
+    vim.system({"bash", "-c", full_cmd}, {text = true, stdout = on_stdout}, on_exit)
 
     if prompt_obj.is_cont then
         output_buf = vim.api.nvim_get_current_buf()
     else
         -- We need a new buffer
         output_buf = open_vertical_split_with_content(
-            string.format("user> %s", content)
+            string.format("user>\n%s\n\nassistant>\n", content)
         )
     end
 
