@@ -1,4 +1,5 @@
 local M = {}
+M.model = nil
 
 --
 -- File
@@ -118,7 +119,7 @@ end
 -- MAIN
 --
 
-local incomplete_line = ""
+local incomplete_line = nil
 
 -- opts is what nvim gives to nvim_create_user_command's function
 function M.run(opts, range)
@@ -159,42 +160,37 @@ function M.run(opts, range)
 		if not data or #data == 0 then
 			return
 		end
+
 		local update_display = function()
-			data = incomplete_line .. data
-			local parts = vim.split(data, "\n", { plain = true })
+			-- Add the incomplete part from previous call
+			if incomplete_line then
+				data = incomplete_line .. data
+			end
+			-- nvim_buf_set_lines wants an array of lines with not \n
+			local parts = vim.split(data, "\n", { plain = true, trimempty = false })
 			-- Handle the last part (could be incomplete)
 			if data:sub(-1) ~= "\n" then
 				-- If the data doesn't end with a newline, save the last part as incomplete
 				incomplete_line = parts[#parts]
-				table.remove(parts, #parts)
 			else
 				-- If it ends with a newline, there's no incomplete line
-				incomplete_line = ""
+				incomplete_line = nil
 			end
-
-			-- If all we had was an incomplete line, don't update display yet
-			if #parts == 0 then
-				return
+			-- We either saved it in incomplete_line, or it's just a carriage return
+			table.remove(parts, #parts)
+			if #parts ~= 0 then
+				-- Update the display
+				vim.api.nvim_buf_set_lines(output_buf, -1, -1, false, parts)
 			end
-
-			-- Append each complete part to the buffer
-			local lines = vim.api.nvim_buf_get_lines(output_buf, -1, -1, false)
-			if #lines == 0 then
-				lines = { "" }
-			end
-			-- Append each complete line part
-			lines[#lines] = lines[#lines] .. parts[1]
-			for i = 2, #parts do
-				table.insert(lines, parts[i])
-			end
-			-- Update the buffer with modified lines
-			vim.api.nvim_buf_set_lines(output_buf, -2, -1, false, lines)
 		end
 		vim.schedule_wrap(update_display)()
 	end
 
-    --local full_cmd = string.format("sleep 1 && echo -n 'I am ' && sleep 1 && echo the first part && sleep 1 && echo I am the second && sleep 1 && echo I am the final")
+    --local full_cmd = string.format("echo -n 'I am' && sleep 1 && echo -n ' the first' && sleep 1 && echo ' part' && sleep 1 && echo '' && sleep 1 && echo -n 'I am the second\nNow me is ' && sleep 1 && echo 'final'")
     local full_cmd = string.format("cat %s | %s", tmpfile, llm_cmd)
+    if M.model then
+        full_cmd = full_cmd:gsub("{MODEL}", M.model)
+    end
     vim.system({"bash", "-c", full_cmd}, {text = true, stdout = on_stdout}, on_exit)
 
     if prompt_obj.is_cont then
@@ -206,6 +202,12 @@ function M.run(opts, range)
         )
     end
 
+end
+
+-- String "{MODEL}" in prompt will be replaced with this
+function M.set_model(opts)
+	M.model = opts.fargs[1]
+	vim.notify(string.format("Calum model set to '%s'", M.model))
 end
 
 -- NVIM CMD is in plugin/init.lua

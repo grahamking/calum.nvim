@@ -27,20 +27,28 @@ Plug('grahamking/calum.nvim')
 In your `.config/nvim/init.lua` (or init.vim equivalent) add these lines:
 
 ```
-local gpt_small_cmd = 'llm -m gpt-4o-mini -s \'Be brief\' -o max_tokens 4096 -o temperature 0.2'
-vim.api.nvim_set_keymap('v', '<leader>l', string.format(':Calum %s<CR>', gpt_small_cmd), { noremap = true, silent = true })
-vim.api.nvim_set_keymap('n', '<leader>l', string.format(':Calum %s<CR>', gpt_small_cmd), { noremap = true, silent = true })
+local calum_run_cmd = 'llm -m {MODEL} -o max_tokens 4096 -o temperature 0.2'
+vim.api.nvim_set_keymap('v', '<leader>l', string.format(':Calum %s<CR>', calum_run_cmd), { noremap = true, silent = true })
+vim.api.nvim_set_keymap('n', '<leader>l', string.format(':Calum %s<CR>', calum_run_cmd), { noremap = true, silent = true })
 
-local gpt_big_cmd = 'llm -m gpt-4o -o max_tokens 4096 -o temperature 0.2'
-vim.api.nvim_set_keymap('v', '<leader>p', string.format(':Calum %s<CR>', gpt_big_cmd), { noremap = true, silent = true })
-vim.api.nvim_set_keymap('n', '<leader>p', string.format(':Calum %s<CR>', gpt_big_cmd), { noremap = true, silent = true })
+local calum_review_cmd = 'llm -m {MODEL} -o temperature 0.2 -s \'You are a code review tool. You will be given snippets of code which you will review. You first identify the language of the snippet, then you provide helpful precise comments and suggestions for improvements.	For each suggestion provide a recommended code change, if approriate. Be concise.\''
+vim.api.nvim_set_keymap('v', '<leader>r', string.format(':Calum %s<CR>', calum_review_cmd), { noremap = true, silent = true })
+vim.api.nvim_set_keymap('n', '<leader>r', string.format(':Calum %s<CR>', calum_review_cmd), { noremap = true, silent = true })
 
-local gpt_review_cmd = 'llm -m gpt-4o -o temperature 0.2 -s \'You are a code review tool. You will be given snippets of code which you will review. You first identify the language of the snippet, then you provide helpful precise comments and suggestions for improvements.	For each suggestion provide a recommended code change, if approriate. Be concise.\''
-vim.api.nvim_set_keymap('v', '<leader>r', string.format(':Calum %s<CR>', gpt_review_cmd), { noremap = true, silent = true })
-vim.api.nvim_set_keymap('n', '<leader>r', string.format(':Calum %s<CR>', gpt_review_cmd), { noremap = true, silent = true })
+vim.api.nvim_set_keymap('v', '<leader>1', ':CalumSetModel gpt-4o-mini<CR>', { noremap = true, silent = true })
+vim.api.nvim_set_keymap('n', '<leader>1', ':CalumSetModel gpt-4o-mini<CR>', { noremap = true, silent = true })
+vim.api.nvim_set_keymap('v', '<leader>2', ':CalumSetModel gpt-4o<CR>', { noremap = true, silent = true })
+vim.api.nvim_set_keymap('n', '<leader>2', ':CalumSetModel gpt-4o<CR>', { noremap = true, silent = true })
+vim.api.nvim_set_keymap('v', '<leader>3', ':CalumSetModel claude-3.5-sonnet<CR>', { noremap = true, silent = true })
+vim.api.nvim_set_keymap('n', '<leader>3', ':CalumSetModel claude-3.5-sonnet<CR>', { noremap = true, silent = true })
+require("calum").model = "gpt-4o" -- Default model
+
 ```
 
-This maps `<leader>l` to a brief gpt-4o-mini, and `<leader>p` to 4o without the system prompt. Customise at will! For example you may wish to use an internal model at your work, to avoid sending proprietary info outside your org.
+This maps `<leader>l` to calling your default model with the selected text (see "Use" below).
+It maps `<leader>1`, `2` and `3` to different models. That sets the model that other actions will use.
+
+Customise at will.
 
 # Use
 
@@ -81,9 +89,11 @@ Highligh a code snippet or the whole file, press `<Leader>r`. Instant code revie
 
 # Misc
 
-- I am using ChatGPT in my examples but you can of course use any model you want. In particular [llm](https://llm.datasette.io/en/stable/) supports Claude and Gemini via it's [extensive plugin selection](https://llm.datasette.io/en/stable/plugins/directory.html#remote-apis).
+- [llm](https://llm.datasette.io/en/stable/) supports many models via it's [extensive plugin selection](https://llm.datasette.io/en/stable/plugins/directory.html#remote-apis).
 
-- You can completely replace the command line. Calum will call it like this:
+- You don't have to use LLM. You don't even have to use this for AI. It just shells to a cmd. You can completely replace the command line. Calum will call it like this:
+
+- In your cmd the optional string `{MODEL}` will be replaced by whatever you last passed to `CalumSetModel`. That is the only replacement string.
 
 ```
 bash -c 'cat <file-containing-your-prompt> | <your-command>'
