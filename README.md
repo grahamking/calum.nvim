@@ -35,12 +35,16 @@ local calum_review_cmd = 'llm -m {MODEL} -o temperature 0.2 -s \'You are a code 
 vim.api.nvim_set_keymap('v', '<leader>r', string.format(':Calum %s<CR>', calum_review_cmd), { noremap = true, silent = true })
 vim.api.nvim_set_keymap('n', '<leader>r', string.format(':Calum %s<CR>', calum_review_cmd), { noremap = true, silent = true })
 
+local calum_fill_cmd = 'llm -m {MODEL} -o temperature 0.2 -s \'You are a fill-in-the-middle coding assistant. Given a prefix and suffix, return only the best middle. Return only the code.\''
+vim.api.nvim_set_keymap('v', '<leader>o', string.format(':CalumFill %s<CR>', calum_fill_cmd), { noremap = true, silent = true })
+vim.api.nvim_set_keymap('n', '<leader>o', string.format(':CalumFill %s<CR>', calum_fill_cmd), { noremap = true, silent = true })
+
 vim.api.nvim_set_keymap('v', '<leader>1', ':CalumSetModel gpt-4o-mini<CR>', { noremap = true, silent = true })
 vim.api.nvim_set_keymap('n', '<leader>1', ':CalumSetModel gpt-4o-mini<CR>', { noremap = true, silent = true })
 vim.api.nvim_set_keymap('v', '<leader>2', ':CalumSetModel gpt-4o<CR>', { noremap = true, silent = true })
 vim.api.nvim_set_keymap('n', '<leader>2', ':CalumSetModel gpt-4o<CR>', { noremap = true, silent = true })
-vim.api.nvim_set_keymap('v', '<leader>3', ':CalumSetModel claude-3.5-sonnet<CR>', { noremap = true, silent = true })
-vim.api.nvim_set_keymap('n', '<leader>3', ':CalumSetModel claude-3.5-sonnet<CR>', { noremap = true, silent = true })
+vim.api.nvim_set_keymap('v', '<leader>3', ':CalumSetModel claude-3.7-sonnet-latest<CR>', { noremap = true, silent = true })
+vim.api.nvim_set_keymap('n', '<leader>3', ':CalumSetModel claude-3.7-sonnet-latest<CR>', { noremap = true, silent = true })
 require("calum").model = "gpt-4o" -- Default model
 
 ```
@@ -50,7 +54,7 @@ It maps `<leader>1`, `2` and `3` to different models. That sets the model that o
 
 Customise at will.
 
-# Use
+# Use: Chat
 
 This section assumes you're using the key mappings above.
 
@@ -83,9 +87,33 @@ The "Thinking..." box will close once the full response has been copied to the n
 
 Switch to the new pane and find the `user>` line at the very bottom. Type your next prompt directly there, as if this was an interactive chat. Do not highlight anything this time, and press the mapped key (e.g. `<Leader>l`). The answer will appear in the current pane underneath your question. You can continue like this as long as necessary.
 
-## Code reviews
+## Use: Code reviews
 
-Highligh a code snippet or the whole file, press `<Leader>r`. Instant code review!
+Highlight a code snippet or the whole file, press `<Leader>r`. Instant code review!
+
+## Use: Fill-in-the-middle, aka completion
+
+With nothing selected, press `<Leader>o`. The AI will figure out what should go on that line based on what comes before and after, and fill it in. Here's an example:
+
+This code
+```
+struct User {
+    first: String,
+    last: String,
+    age: usize,
+}
+
+impl User {
+    pub fn full_name(&self) -> String {
+        --> YOUR CURSOR IS HERE <--
+    }
+    pub fn age(&self) -> usize {
+        self.age
+    }
+}
+```
+
+It will fill the function with: `format!("{} {}", self.first, self.last)`.
 
 # Misc
 

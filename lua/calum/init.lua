@@ -166,7 +166,7 @@ function M.run(opts, range)
 			if incomplete_line then
 				data = incomplete_line .. data
 			end
-			-- nvim_buf_set_lines wants an array of lines with not \n
+			-- nvim_buf_set_lines wants an array of lines with no \n
 			local parts = vim.split(data, "\n", { plain = true, trimempty = false })
 			-- Handle the last part (could be incomplete)
 			if data:sub(-1) ~= "\n" then
@@ -208,6 +208,81 @@ end
 function M.set_model(opts)
 	M.model = opts.fargs[1]
 	vim.notify(string.format("Calum model set to '%s'", M.model))
+end
+
+local data_so_far = ""
+-- Fill-in-the-middle at current cursor position
+function M.fill(opts)
+    local llm_cmd = opts.fargs[1]
+
+    -- Read the current cursor position
+    local cursor_pos = vim.api.nvim_win_get_cursor(0)
+    local row, col = cursor_pos[1], cursor_pos[2]
+
+    -- Select text from start of file to current cursor position, store in "prefix"
+    local lines = vim.api.nvim_buf_get_lines(0, 0, row, false)
+    local prefix = table.concat(lines, "\n")
+    if #lines > 0 then
+        prefix = prefix .. "\n" .. string.sub(lines[#lines], 1, col)
+    end
+
+    -- Select text from current cursor position to end of file, store in "suffix"
+    local end_lines = vim.api.nvim_buf_get_lines(0, row - 1, -1, false)
+    local suffix = ""
+    if #end_lines > 0 then
+        suffix = string.sub(end_lines[1], col + 1)
+        if #end_lines > 1 then
+            suffix = suffix .. "\n" .. table.concat(end_lines, "\n", 2)
+        end
+    end
+
+    -- Identify the programming language based on neovim's auto detection, store in "language"
+    local language = vim.bo.filetype
+
+    local content = string.format("Language: %s\n\nPrefix:\n```\n%s\n```\n\nSuffix:\n```\n%s\n```\n\nMiddle:\n", language, prefix, suffix);
+	local tmpfile = write_to_temp_file(content)
+    if tmpfile == nil then
+        close_floating_window(popup.win, popup.buf)
+        return
+    end
+
+    local full_cmd = string.format("cat %s | %s", tmpfile, llm_cmd)
+    if M.model then
+        full_cmd = full_cmd:gsub("{MODEL}", M.model)
+    end
+
+	-- We have the command, now run it
+
+    local user_win = vim.api.nvim_get_current_win()
+	local insert_pos = vim.api.nvim_win_get_cursor(0)
+	local insert_line = insert_pos[1] -- yes 1 indexed
+	--vim.notify(vim.inspect(insert_pos))
+
+    local popup = show_floating_window("Thinking...")
+    vim.api.nvim_set_current_win(user_win)
+
+    local on_exit = function(obj)
+		local on_exit_action = function()
+			-- nvim_buf_set_lines wants an array of lines with no \n
+			local parts = vim.split(data_so_far, "\n", { plain = true, trimempty = false })
+			vim.api.nvim_buf_set_lines(0, insert_line, insert_line, false, parts)
+			data_so_far = ""
+            close_floating_window(popup.win, popup.buf)
+            vim.fn.delete(tmpfile)
+        end
+		vim.schedule_wrap(on_exit_action)()
+    end
+
+	local on_stdout = function(err, data)
+		if not data or #data == 0 or data == "```" then
+			return
+		end
+		-- Collect. We don't stream.
+		data_so_far = data_so_far .. data
+	end
+
+    vim.system({"bash", "-c", full_cmd}, {text = true, stdout = on_stdout}, on_exit)
+
 end
 
 -- NVIM CMD is in plugin/init.lua
