@@ -1,58 +1,49 @@
-A neovim plugin to call [llm](https://llm.datasette.io/en/stable/) inline, or really any command line you want.
+A neovim plugin to call [llm](https://llm.datasette.io/en/stable/) inline.
 
 *Talk to ChatGPT, Claude, etc from neovim!*
 
 *Instant code reviews!*
 
+*AI Code completion, it's almost like Cursor but built with sticky tape and twine!*
+
 Usage summary:
-- Select some text.
-- Hit the shortcut key `<leader>l`.
+- Select some text, or nothing to send the whole buffer.
+- Hit the shortcut key `<leader>l`, choose "Query".
 - Plugin sends the selected text to `llm` cmd line.
 - Plugin opens a vertical split and displays the output on the right.
 - Continue the conversation in that buffer. Don't select any text this time.
 
 # Install and setup
 
-There are three important steps.
+Make sure you have `llm` setup and working, with an OpenAI API key (or relevant key for your AI).
 
-1. First make sure you have `llm` setup and working, with an OpenAI API key (or relevant key for you AI).
-
-2. Add this to your init.lua (vim-plug, customise for your nvim package manager).
+Add this to your init.lua (vim-plug, customise for your nvim package manager).
 ```
 Plug('grahamking/calum.nvim')
+
+require('calum').setup{}
 ```
 
-3. Add a key mapping or two
+Press `<leader>l`, select an option. Default model is OpenAI's 4o-mini.
 
-In your `.config/nvim/init.lua` (or init.vim equivalent) add these lines:
-
-```
-local calum_run_cmd = 'llm -m {MODEL} -o max_tokens 4096 -o temperature 0.2'
-vim.api.nvim_set_keymap('v', '<leader>l', string.format(':Calum %s<CR>', calum_run_cmd), { noremap = true, silent = true })
-vim.api.nvim_set_keymap('n', '<leader>l', string.format(':Calum %s<CR>', calum_run_cmd), { noremap = true, silent = true })
-
-local calum_review_cmd = 'llm -m {MODEL} -o temperature 0.2 -s \'You are a code review tool. You will be given snippets of code which you will review. You first identify the language of the snippet, then you provide helpful precise comments and suggestions for improvements.	For each suggestion provide a recommended code change, if approriate. Be concise.\''
-vim.api.nvim_set_keymap('v', '<leader>r', string.format(':Calum %s<CR>', calum_review_cmd), { noremap = true, silent = true })
-vim.api.nvim_set_keymap('n', '<leader>r', string.format(':Calum %s<CR>', calum_review_cmd), { noremap = true, silent = true })
-
-local calum_fill_cmd = 'llm -m {MODEL} -o temperature 0.2 -s \'You are a fill-in-the-middle coding assistant. Given a prefix and suffix, return only the best middle. Return only the code.\''
-vim.api.nvim_set_keymap('v', '<leader>o', string.format(':CalumFill %s<CR>', calum_fill_cmd), { noremap = true, silent = true })
-vim.api.nvim_set_keymap('n', '<leader>o', string.format(':CalumFill %s<CR>', calum_fill_cmd), { noremap = true, silent = true })
-
-vim.api.nvim_set_keymap('v', '<leader>1', ':CalumSetModel gpt-4o-mini<CR>', { noremap = true, silent = true })
-vim.api.nvim_set_keymap('n', '<leader>1', ':CalumSetModel gpt-4o-mini<CR>', { noremap = true, silent = true })
-vim.api.nvim_set_keymap('v', '<leader>2', ':CalumSetModel gpt-4o<CR>', { noremap = true, silent = true })
-vim.api.nvim_set_keymap('n', '<leader>2', ':CalumSetModel gpt-4o<CR>', { noremap = true, silent = true })
-vim.api.nvim_set_keymap('v', '<leader>3', ':CalumSetModel claude-3.7-sonnet-latest<CR>', { noremap = true, silent = true })
-vim.api.nvim_set_keymap('n', '<leader>3', ':CalumSetModel claude-3.7-sonnet-latest<CR>', { noremap = true, silent = true })
-require("calum").model = "gpt-4o" -- Default model
+# Customize
 
 ```
+require('calum').setup{
+  -- What to press to activate Calum
+  key = '<leader>l',
 
-This maps `<leader>l` to calling your default model with the selected text (see "Use" below).
-It maps `<leader>1`, `2` and `3` to different models. That sets the model that other actions will use.
+  -- All the available models. Must match choices from `llm models` including aliases.
+  -- First one in the list is selected on startup.
+  models = {'gemini-2.5-pro-exp-03-25', 'anthropic/claude-3-7-sonnet-latest', 'chatgpt-4o-latest'},
+}
+```
 
-Customise at will.
+Gemini and Claude require `llm` plugins and relevant AI keys:
+- `llm install -U llm-gemini`
+- `llm install -U llm-anthropic`
+
+You can also customise the system prompts, command line, etc. Check the `defaults` object in source.
 
 # Use: Chat
 
@@ -81,7 +72,7 @@ In Rust write a struct called MyErr which implements Error.
 
 Here I would highlight that single line ("In Rust .."), and most likely replace it with the interesting parts from the new pane that opens.
 
-The "Thinking..." box will close once the full response has been copied to the new pane, but you can continue working whilst it hovers. The new pane doesn't auto scroll (I found that dizzying). If the box is still there but nothing is changing on the output pane it means the content is appearing below the fold. Feel free to scroll the pane to see it.
+You can continue working whilst the AI answers. The new pane doesn't auto scroll (I found that dizzying). Feel free to scroll the pane to see it.
 
 ## Continuing the chat
 
@@ -89,11 +80,11 @@ Switch to the new pane and find the `user>` line at the very bottom. Type your n
 
 ## Use: Code reviews
 
-Highlight a code snippet or the whole file, press `<Leader>r`. Instant code review!
+Highlight a code snippet or nothing to review the whole file, press `<Leader>l`, select Review. Instant code review!
 
 ## Use: Fill-in-the-middle, aka completion
 
-With nothing selected, press `<Leader>o`. The AI will figure out what should go on that line based on what comes before and after, and fill it in. Here's an example:
+With nothing selected, press `<Leader>l` select Fill. The AI will figure out what should go on that line based on what comes before and after, and fill it in. Here's an example:
 
 This code
 ```
@@ -119,14 +110,7 @@ It will fill the function with: `format!("{} {}", self.first, self.last)`.
 
 - [llm](https://llm.datasette.io/en/stable/) supports many models via it's [extensive plugin selection](https://llm.datasette.io/en/stable/plugins/directory.html#remote-apis).
 
-- You don't have to use LLM. You don't even have to use this for AI. It just shells to a cmd. You can completely replace the command line. Calum will call it like this:
-
-- In your cmd the optional string `{MODEL}` will be replaced by whatever you last passed to `CalumSetModel`. That is the only replacement string.
-
-```
-bash -c 'cat <file-containing-your-prompt> | <your-command>'
-```
-The output of that goes into the new buffer. Your command needs to accept it's prompt on stdin. This should work very well with [chatgpt-cli](https://github.com/kardolus/chatgpt-cli) for example (although I haven't tried it yet).
-
 - Why is it called "calum"? It started as "call-llm" but that's too boring. And it's a "calm" way of using AI. You select the text to send, you view the results, all inline, in a very simple setup.
+
+- Originally co-authored with Claude 3.5 and 3.7. Re-written with Gemini 2.5 Pro. What a wonderful time to be a programmer.
 
