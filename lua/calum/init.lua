@@ -11,7 +11,7 @@ local defaults = {
   models = {'4o-mini', 'chatgpt-4o-latest'},
 
   -- Cmd line to do a query
-  query_cmd = 'llm -m {MODEL} -o max_tokens 8192 -o temperature 0.2',
+  query_cmd = 'llm -m {MODEL} -o temperature 0.2',
 
   -- Cmd line with system prompt to do a code review
   review_cmd = 'llm -m {MODEL} -o temperature 0.2 -s \'You are a code review tool. You will be given snippets of code which you will review. You first identify the language of the snippet, then you provide helpful precise comments and suggestions for improvements. For each suggestion provide a recommended code change, if approriate. Be concise.\'',
